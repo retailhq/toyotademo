@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kiosk Portrait Preview</title>
+<style>
+  /* Testing aid only: shows the kiosk as it looks on a 1080 x 1920 portrait screen,
+     scaled down to fit a landscape monitor. Not needed on the real screen. */
+  html, body { margin: 0; height: 100%; background: #2a2a2a; font-family: Arial, sans-serif; color: #ddd; overflow: hidden; }
+  .wrap { height: 100%; display: flex; align-items: center; justify-content: center; gap: 32px; }
+  .bezel { background: #050505; border-radius: 28px; padding: 22px; box-shadow: 0 20px 60px rgb(0 0 0 / .6); }
+  .screen { width: 1080px; height: 1920px; overflow: hidden; background: #fff; transform-origin: 0 0; }
+  .screen iframe { width: 1080px; height: 1920px; border: 0; display: block; }
+  .side { width: 220px; font-size: 14px; line-height: 1.5; }
+  .side h1 { font-size: 18px; margin: 0 0 8px; color: #fff; }
+  .side button { display: block; width: 100%; margin: 8px 0; padding: 10px; border: 0; border-radius: 8px; background: #fff; color: #111;
+    font-size: 14px; font-weight: 700; cursor: pointer; }
+  .side small { color: #999; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="bezel"><div id="box"><div class="screen" id="screen"><iframe id="kiosk" title="Kiosk"></iframe></div></div></div>
+  <div class="side">
+    <h1>Portrait preview</h1>
+    <p>1080 × 1920 screen, shown at <b id="pct"></b> size. Click as you would tap.</p>
+    <button id="reload">Restart kiosk</button>
+    <button id="wake">Skip screensaver</button>
+    <button id="sleep">Show screensaver</button>
+    <p><small>Scroll with the mouse wheel. Swipe photos by dragging, or use the arrows.</small></p>
+  </div>
+</div>
+<script>
+  const kiosk = document.getElementById("kiosk");
+  kiosk.src = "index.html" + location.search;
+  function fit() {
+    const s = Math.min((innerHeight - 80) / 1920, (innerWidth - 340) / 1080, 1);
+    const scr = document.getElementById("screen");
+    scr.style.transform = `scale(${s})`;
+    const box = document.getElementById("box");
+    box.style.width = 1080 * s + "px"; box.style.height = 1920 * s + "px";
+    document.getElementById("pct").textContent = Math.round(s * 100) + "%";
+  }
+  addEventListener("resize", fit); fit();
+  const w = () => kiosk.contentWindow;
+  document.getElementById("reload").onclick = () => w().location.reload();
+  document.getElementById("wake").onclick = () => w().document.getElementById("attract").dispatchEvent(new w().PointerEvent("pointerdown", { bubbles: true }));
+  document.getElementById("sleep").onclick = () => w().startAttract();
+</script>
+</body>
+</html>

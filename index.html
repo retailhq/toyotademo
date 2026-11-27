@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Toyota Vehicle Finder</title>
+<style>
+  /* Lightweight in-store kiosk for a portrait touch screen (Toyota range).
+     Everything is local: no web fonts, no frameworks, no tracking.
+     All sizes are in rem; 1rem = 1/54 of the screen width (20px on a 1080px-wide screen). */
+  :root {
+    --ink: #111; --muted: #6b6b6b; --line: #e3e3e3; --bg: #fff; --soft: #f3f3f3;
+    --red: #eb0a1e; --dark: #1a1a1a;
+    --font: "Helvetica Neue", Helvetica, Roboto, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { font-size: calc(100vw / 54); }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: var(--font);
+    overflow: hidden; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: inherit; }
+  img { display: block; -webkit-user-drag: none; }
+  .muted { color: var(--muted); }
+
+  .app { display: flex; flex-direction: column; height: 100%; }
+
+  /* ---- Header ---- */
+  header { flex: none; padding: 2rem 2.4rem 1.4rem; display: flex; align-items: center; justify-content: space-between; gap: 2rem; }
+  header .logo { height: 2.4rem; width: auto; }
+  .store { text-align: right; }
+  .store b { display: block; font-size: 1.3rem; }
+  .store span { font-size: .8rem; color: var(--muted); letter-spacing: .14em; text-transform: uppercase; }
+
+  /* ---- Category tabs ---- */
+  .tabs { flex: none; display: flex; gap: .5rem; padding: 0 2.4rem 1.2rem; overflow-x: auto; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar, .rail::-webkit-scrollbar, .gthumbs::-webkit-scrollbar { display: none; }
+  .tab { flex: none; padding: 1rem 1.4rem; border-radius: 99rem; background: var(--soft); font-size: 1.05rem; font-weight: 700; white-space: nowrap; }
+  .tab.on { background: var(--ink); color: #fff; }
+  .bar { flex: none; display: flex; align-items: center; gap: 1rem; padding: 0 2.4rem 1.2rem; border-bottom: 1px solid var(--line); }
+  .bar .count { flex: 1; font-size: 1rem; color: var(--muted); }
+  .sort { flex: none; padding: .7rem 1.2rem; font-size: .95rem; font-weight: 700; border: 2px solid var(--ink); border-radius: 99rem; }
+
+  /* ---- Grid of models ---- */
+  main { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 1.6rem 2.4rem 2.4rem; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.6rem; }
+  .card { background: var(--soft); border-radius: 1.2rem; overflow: hidden; display: flex; flex-direction: column; cursor: pointer;
+    content-visibility: auto; contain-intrinsic-size: 24.5rem 30rem; }
+  .card:active { opacity: .75; }
+  .card .pic { background: #fff; aspect-ratio: 16 / 10; display: flex; align-items: center; justify-content: center; }
+  .card .pic img { width: 92%; height: 92%; object-fit: contain; }
+  .card .txt { padding: 1.2rem 1.3rem 1.3rem; display: flex; flex-direction: column; gap: .4rem; flex: 1; }
+  .card .name { font-size: 1.35rem; font-weight: 700; line-height: 1.2; }
+  .card .tag { font-size: .95rem; color: var(--muted); line-height: 1.3; }
+  .card .from { margin-top: auto; padding-top: .6rem; font-size: 1.15rem; }
+  .card .from b { font-size: 1.25rem; }
+  .card .pm { font-size: .95rem; color: var(--red); font-weight: 700; }
+  .card .meta { font-size: .85rem; color: var(--muted); }
+  .cmp { display: flex; align-items: center; gap: .6rem; margin-top: .6rem; padding: .55rem .9rem .55rem .6rem; align-self: flex-start;
+    border: 2px solid var(--line); border-radius: 99rem; background: #fff; font-size: .9rem; font-weight: 700; }
+  .cmp i { width: 1.5rem; height: 1.5rem; border: 2px solid #999; border-radius: .35rem; font-style: normal; font-size: 1rem; line-height: 1.1rem;
+    text-align: center; color: transparent; }
+  .cmp.on { border-color: var(--ink); }
+  .cmp.on i { background: var(--ink); border-color: var(--ink); color: #fff; }
+
+  /* ---- Home ---- */
+  .app.home .tabs, .app.home .bar { display: none; }
+  .app.home main { padding: 0; }
+  .home-view { display: none; }
+  .app.home .home-view { display: block; }
+  .app.home .grid { display: none; }
+  .hero { position: relative; background: #000; color: #fff; }
+  .hero img { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; opacity: .92; }
+  .hero .copy { position: absolute; left: 0; right: 0; bottom: 0; padding: 6rem 2.4rem 2.4rem;
+    background: linear-gradient(180deg, rgb(0 0 0 / 0), rgb(0 0 0 / .78)); }
+  .hero h1 { margin: 0 0 .6rem; font-size: 3.4rem; line-height: 1.02; }
+  .hero p { margin: 0 0 1.6rem; font-size: 1.3rem; line-height: 1.4; color: rgb(255 255 255 / .85); }
+  .hero .go { background: var(--red); color: #fff; border-radius: 99rem; padding: 1.3rem 2.4rem; font-size: 1.15rem; font-weight: 700; letter-spacing: .06em; }
+  .home-h { margin: 2.6rem 2.4rem 1.2rem; font-size: 1.05rem; letter-spacing: .16em; text-transform: uppercase; }
+  .tiles { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .9rem; padding: 0 2.4rem; }
+  .tile { position: relative; aspect-ratio: 1; border-radius: 1.1rem; overflow: hidden; background: #222; color: #fff; text-align: left; }
+  .tile img { width: 100%; height: 100%; object-fit: cover; }
+  .tile::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgb(0 0 0 / 0) 40%, rgb(0 0 0 / .72) 100%); }
+  .tile .lbl { position: absolute; left: 1.1rem; right: 1rem; bottom: 1rem; z-index: 1; }
+  .tile b { display: block; font-size: 1.35rem; line-height: 1.1; }
+  .tile span { font-size: .85rem; color: rgb(255 255 255 / .85); }
+  .rail { display: flex; gap: 1rem; overflow-x: auto; scrollbar-width: none; padding: 0 2.4rem 2.6rem; }
+  .rail .card { flex: none; width: 21rem; }
+
+  /* ---- Footer ---- */
+  .tray { flex: none; display: none; align-items: center; gap: 1rem; padding: 1rem 2.4rem; background: #fff; border-top: 2px solid var(--ink); }
+  .tray.on { display: flex; }
+  .tray .slots { flex: 1; display: flex; gap: .8rem; min-width: 0; }
+  .slot { position: relative; width: 8.4rem; height: 5.6rem; border: 2px solid var(--line); border-radius: .8rem; background: #fff; flex: none; }
+  .slot img { width: 100%; height: 100%; object-fit: contain; }
+  .slot.empty { border-style: dashed; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: .8rem; }
+  .slot .x, .ccol .x { position: absolute; top: -.8rem; right: -.8rem; width: 2.2rem; height: 2.2rem; border-radius: 50%; background: var(--ink); color: #fff; font-size: 1.3rem; line-height: 1; text-align: center; }
+  .tray .go { background: var(--red); color: #fff; border-radius: 99rem; padding: 1.2rem 1.8rem; font-size: 1.05rem; font-weight: 700; }
+  .tray .go[disabled] { opacity: .35; }
+  .tray .clear { font-size: .95rem; color: var(--muted); text-decoration: underline; padding: .6rem; }
+  footer { flex: none; background: #000; color: #fff; display: flex; align-items: center; justify-content: center; padding: 1.1rem 2.4rem;
+    font-size: .85rem; letter-spacing: .12em; text-transform: uppercase; }
+  footer .by { display: flex; align-items: center; gap: .9rem; color: rgb(255 255 255 / .7); }
+  footer .by img { height: 2.2rem; }
+
+  /* ---- Model page ---- */
+  .sheet { position: fixed; inset: 0; background: #fff; transform: translateY(100%); transition: transform .28s ease-out; display: flex; flex-direction: column; z-index: 10; }
+  .sheet.open { transform: none; }
+  .sheet .top { flex: none; display: flex; justify-content: space-between; align-items: center; padding: 1.2rem 2.4rem; border-bottom: 1px solid var(--line); }
+  .sheet .top img { height: 1.9rem; }
+  .close { width: 4.2rem; height: 4.2rem; border-radius: 50%; background: var(--ink); color: #fff; font-size: 2.2rem; line-height: 1; text-align: center; }
+  .sheet .body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: 3rem; }
+  .pad { padding: 0 2.4rem; }
+  .banner { position: relative; background: #000; }
+  .banner img { width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; }
+  .banner .copy { position: absolute; left: 0; right: 0; bottom: 0; padding: 5rem 2.4rem 1.6rem; color: #fff;
+    background: linear-gradient(180deg, rgb(0 0 0 / 0), rgb(0 0 0 / .75)); }
+  .banner h1 { margin: 0; font-size: 3rem; line-height: 1.05; }
+  .banner p { margin: .4rem 0 0; font-size: 1.25rem; color: rgb(255 255 255 / .85); }
+  .opt { margin-top: 2rem; }
+  .opt h4 { margin: 0 0 .9rem; font-size: .95rem; letter-spacing: .14em; text-transform: uppercase; }
+  .opt h4 span { font-weight: 400; letter-spacing: .02em; text-transform: none; color: var(--muted); margin-left: .5rem; font-size: 1.05rem; }
+  .grades { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
+  .grade { border: 2px solid var(--line); border-radius: 1rem; padding: 1rem 1.2rem; }
+  .grade b { display: block; font-size: 1.1rem; line-height: 1.25; }
+  .grade i { display: block; font-style: normal; font-size: 1.05rem; margin-top: .4rem; font-weight: 700; }
+  .grade.on { border-color: var(--red); box-shadow: inset 0 0 0 1px var(--red); }
+  .carpic { margin-top: 1.6rem; background: linear-gradient(180deg, #fff 60%, #f1f1f1); border-radius: 1.2rem; aspect-ratio: 2 / 1; display: flex; align-items: center; justify-content: center; }
+  .carpic img { width: 94%; height: 94%; object-fit: contain; }
+  .swatches { display: flex; flex-wrap: wrap; gap: 1rem; }
+  .sw { width: 3.8rem; height: 3.8rem; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 2px var(--line); }
+  .sw.on { box-shadow: 0 0 0 3px var(--ink); }
+  .price { margin-top: 1.8rem; display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; }
+  .price .p { font-size: 2.3rem; font-weight: 700; }
+  .price .p small { display: block; font-size: .85rem; font-weight: 400; color: var(--muted); letter-spacing: .08em; }
+  .price .pm { text-align: right; color: var(--red); font-weight: 700; font-size: 1.4rem; }
+  .price .pm small { display: block; font-size: .8rem; font-weight: 400; color: var(--muted); }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: .8rem; margin-top: 1.6rem; }
+  .stat { background: var(--soft); border-radius: .9rem; padding: 1rem; }
+  .stat b { display: block; font-size: 1.2rem; }
+  .stat span { font-size: .8rem; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .blurb { margin: 1.6rem 0 0; font-size: 1.15rem; line-height: 1.5; color: #333; }
+  .blurb b { display: block; color: var(--ink); font-size: 1.3rem; margin-bottom: .4rem; }
+
+  .itabs { display: flex; margin: 2.4rem 2.4rem 0; border-bottom: 2px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+  .itab { flex: 1 0 auto; padding: 1.2rem 1rem; font-size: 1.05rem; font-weight: 700; color: var(--muted); border-bottom: 4px solid transparent; margin-bottom: -2px; text-align: center; }
+  .itab.on { color: var(--ink); border-color: var(--red); }
+  .ipane { padding: 1.6rem 2.4rem 0; }
+  .feat { margin-bottom: 2.4rem; }
+  .feat img { width: 100%; height: auto; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 1rem; background: var(--soft); }
+  .feat h3 { margin: 1.1rem 0 .5rem; font-size: 1.5rem; }
+  .feat p { margin: 0; font-size: 1.1rem; line-height: 1.55; color: #333; white-space: pre-line; }
+  .tips { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .tipc { border-radius: 1rem; overflow: hidden; background: var(--soft); }
+  .tipc img { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: cover; }
+  .tipc div { padding: .8rem 1rem 1rem; font-size: 1.05rem; font-weight: 700; line-height: 1.35; }
+  .tipc small { display: block; font-weight: 400; color: var(--muted); margin-top: .3rem; font-size: .95rem; }
+  .gal { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
+  .gal button { border-radius: .8rem; overflow: hidden; background: var(--soft); aspect-ratio: 16 / 11; }
+  .gal img { width: 100%; height: 100%; object-fit: cover; }
+  .specs { margin: 0; }
+  .specs div { display: grid; grid-template-columns: 13rem 1fr; gap: 1.2rem; padding: 1rem 0; border-bottom: 1px solid var(--line); font-size: 1.1rem; line-height: 1.4; }
+  .specs dt { font-weight: 700; text-transform: uppercase; letter-spacing: .05em; font-size: .85rem; padding-top: .15rem; }
+  .specs dd { margin: 0; }
+  .saf { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; }
+  .saf div { background: var(--soft); border-radius: .9rem; padding: 1.1rem 1.2rem; font-size: 1.05rem; line-height: 1.4; }
+  .saf b { display: block; margin-bottom: .3rem; }
+  .scan { display: flex; align-items: center; gap: 2rem; background: var(--soft); border-radius: 1.2rem; padding: 1.6rem; margin-top: 1.6rem; }
+  .scan img { width: 11rem; height: 11rem; background: #fff; image-rendering: pixelated; flex: none; }
+  .scan b { display: block; font-size: 1.4rem; margin-bottom: .5rem; }
+  .scan p { margin: 0; font-size: 1.05rem; line-height: 1.45; color: #444; }
+  .note { font-size: .85rem; color: var(--muted); line-height: 1.4; margin-top: 1.2rem; }
+
+  .buildbar { flex: none; display: flex; align-items: center; gap: 1rem; padding: 1.2rem 2.4rem; background: var(--dark); color: #fff; }
+  .buildbar .sum { flex: 1; min-width: 0; }
+  .buildbar .sum small { display: block; font-size: .85rem; color: rgb(255 255 255 / .65); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .buildbar .sum b { font-size: 1.6rem; }
+  .buildbar button { flex: none; border-radius: 99rem; padding: 1.1rem 1.5rem; font-size: 1rem; font-weight: 700; }
+  .buildbar .cmpbtn { border: 2px solid rgb(255 255 255 / .6); }
+  .buildbar .cmpbtn.on { background: #fff; color: var(--ink); }
+  .buildbar .mine { background: var(--red); color: #fff; }
+
+  /* photo viewer */
+  .viewer { position: fixed; inset: 0; z-index: 14; background: #000; display: none; flex-direction: column; }
+  .viewer.on { display: flex; }
+  .viewer .vtop { flex: none; display: flex; justify-content: space-between; align-items: center; padding: 1.4rem 2.4rem; color: #fff; font-size: 1.1rem; }
+  .viewer .vtop .close { background: #fff; color: #000; }
+  .viewer .vimg { flex: 1; display: flex; align-items: center; justify-content: center; touch-action: pan-y; }
+  .viewer .vimg img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .viewer .vnav { flex: none; display: flex; justify-content: center; gap: 2rem; padding: 2rem; }
+  .viewer .vnav button { width: 5rem; height: 5rem; border-radius: 50%; background: #fff; color: #000; font-size: 2.2rem; }
+
+  /* modal */
+  .modal { position: fixed; inset: 0; z-index: 15; background: rgb(0 0 0 / .6); display: none; align-items: flex-end; }
+  .modal.on { display: flex; }
+  .modal .panel { width: 100%; background: #fff; border-radius: 2rem 2rem 0 0; padding: 2.4rem; max-height: 88%; overflow-y: auto; }
+  .modal h2 { margin: 0 0 .4rem; font-size: 2rem; }
+  .modal .lines div { display: flex; justify-content: space-between; gap: 1.4rem; padding: 1rem 0; border-bottom: 1px solid var(--line); font-size: 1.15rem; }
+  .modal .lines div span:last-child { flex: none; font-weight: 700; }
+  .modal .done { width: 100%; margin-top: 1.6rem; background: var(--ink); color: #fff; border-radius: 99rem; padding: 1.4rem; font-size: 1.2rem; font-weight: 700; text-align: center; }
+
+  /* compare */
+  .compare { position: fixed; inset: 0; z-index: 12; background: #fff; display: none; flex-direction: column; }
+  .compare.on { display: flex; }
+  .compare .top { flex: none; display: flex; justify-content: space-between; align-items: center; padding: 1.4rem 2.4rem; border-bottom: 1px solid var(--line); }
+  .compare .top h2 { margin: 0; font-size: 1.6rem; }
+  .compare .tools { flex: none; display: flex; align-items: center; justify-content: space-between; padding: 1rem 2.4rem; background: var(--soft); }
+  .toggle { display: flex; align-items: center; gap: .8rem; font-size: 1.05rem; font-weight: 700; }
+  .toggle i { width: 3.6rem; height: 2rem; border-radius: 99rem; background: #bbb; position: relative; }
+  .toggle i::after { content: ""; position: absolute; top: .25rem; left: .25rem; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: #fff; transition: left .15s; }
+  .toggle.on i { background: var(--red); }
+  .toggle.on i::after { left: 1.85rem; }
+  .compare .cbody { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .chead { position: sticky; top: 0; z-index: 1; background: #fff; display: grid; gap: 1rem; padding: 1.4rem 2.4rem 1rem; border-bottom: 2px solid var(--ink); }
+  .ccol { position: relative; }
+  .ccol .pic { width: 100%; background: #fff; aspect-ratio: 16 / 10; border: 1px solid var(--line); border-radius: .8rem; display: flex; align-items: center; justify-content: center; }
+  .ccol .pic img { width: 94%; height: 94%; object-fit: contain; }
+  .ccol b { display: block; font-size: 1.05rem; line-height: 1.25; margin: .7rem 0 .3rem; }
+  .ccol .pr { font-size: 1.1rem; }
+  .ccol .view { margin-top: .6rem; font-size: .9rem; font-weight: 700; text-decoration: underline; }
+  .csec { padding: 1.6rem 2.4rem .4rem; font-size: 1rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
+  .crow { padding: .9rem 2.4rem; border-bottom: 1px solid var(--line); }
+  .crow .k { font-size: .85rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: .5rem; }
+  .crow .v { display: grid; gap: 1rem; font-size: 1.05rem; line-height: 1.4; }
+  .crow.diff { background: #fff4f4; }
+  .sw-row { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .sw-row i { width: 1.6rem; height: 1.6rem; border-radius: 50%; border: 1px solid rgb(0 0 0 / .2); }
+
+  /* screensaver */
+  .attract { position: fixed; inset: 0; background: #000; z-index: 20; display: none; flex-direction: column; color: #fff; }
+  .attract.on { display: flex; }
+  .slides { position: relative; flex: 1; }
+  /* banner photos are landscape: show them as a wide band, then the name, then the car itself */
+  .slide { position: absolute; inset: 0; opacity: 0; transition: opacity 1.2s; display: flex; flex-direction: column;
+    background: radial-gradient(ellipse at 50% 85%, #3a3a3a 0%, #111 60%, #000 100%); }
+  .slide.on { opacity: 1; }
+  .slide .band { width: 100%; height: auto; aspect-ratio: 16 / 11; object-fit: cover; flex: none; }
+  .slide .cap { flex: none; padding: 2.6rem 3rem 0; }
+  .slide .car { flex: 1; min-height: 0; width: 100%; object-fit: contain; padding: 1rem 2rem 1.4rem; }
+  .slide .nm { font-size: 3.6rem; font-weight: 700; line-height: 1.05; }
+  .slide .tg { font-size: 1.5rem; margin: .6rem 0 1rem; color: rgb(255 255 255 / .85); }
+  .slide .pr { font-size: 1.6rem; }
+  .attract .alogo { position: absolute; top: 0; left: 0; right: 0; z-index: 2; display: flex; justify-content: space-between; align-items: center;
+    padding: 3rem; background: linear-gradient(180deg, rgb(0 0 0 / .55), rgb(0 0 0 / 0)); }
+  .attract .alogo img { height: 2.8rem; background: #fff; border-radius: .6rem; padding: .5rem .9rem; }
+  .attract .alogo span { font-size: 1.1rem; letter-spacing: .16em; text-transform: uppercase; }
+  .touch { flex: none; margin: 0 3rem 3.4rem; background: var(--red); color: #fff; text-align: center; border-radius: 99rem;
+    padding: 1.8rem; font-size: 1.6rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+</style>
+</head>
+<body>
+<div class="app home" id="app">
+  <header>
+    <button id="logoHome" aria-label="Home"><img class="logo" src="logo-toyota.svg" alt="Toyota"></button>
+    <div class="store"><b id="storeName"></b><span id="storeTag"></span></div>
+  </header>
+  <nav class="tabs" id="tabs"></nav>
+  <div class="bar"><span class="count" id="count"></span><button class="sort" id="sort"></button></div>
+  <main id="main">
+    <div class="home-view" id="homeView"></div>
+    <div class="grid" id="grid"></div>
+  </main>
+  <div class="tray" id="tray"></div>
+  <footer><span class="by">Powered by <img src="retailhq-logo-white.png" alt="RetailHQ"></span></footer>
+</div>
+
+<section class="sheet" id="sheet">
+  <div class="top"><img src="logo-toyota.svg" alt=""><button class="close" id="close" aria-label="Close">&times;</button></div>
+  <div class="body" id="sheetBody"></div>
+  <div class="buildbar">
+    <div class="sum"><small id="buildLine"></small><b id="buildPrice"></b></div>
+    <button id="cmpThis" class="cmpbtn">+ Compare</button>
+    <button id="mine" class="mine">My Toyota</button>
+  </div>
+</section>
+
+<section class="viewer" id="viewer">
+  <div class="vtop"><span id="vcap"></span><button class="close" id="vclose" aria-label="Close">&times;</button></div>
+  <div class="vimg" id="vimg"><img id="vphoto" alt=""></div>
+  <div class="vnav"><button id="vprev" aria-label="Previous">&#8249;</button><button id="vnext" aria-label="Next">&#8250;</button></div>
+</section>
+
+<section class="compare" id="compare">
+  <div class="top"><h2>Compare</h2><button class="close" id="cmpClose" aria-label="Close">&times;</button></div>
+  <div class="tools"><button class="toggle" id="diffOnly"><i></i>Show only differences</button><span class="muted" id="cmpCount"></span></div>
+  <div class="cbody" id="cmpBody"></div>
+</section>
+
+<section class="modal" id="modal"><div class="panel" id="modalPanel"></div></section>
+
+<section class="attract" id="attract">
+  <div class="alogo"><img src="logo-toyota.svg" alt="Toyota"><span id="attractStore"></span></div>
+  <div class="slides"><div class="slide" id="slideA"></div><div class="slide" id="slideB"></div></div>
+  <div class="touch">Touch to explore</div>
+</section>
+
+<script src="data.js"></script>
+<script>
+/* ---- Store settings (or pass ?store=Name&tag=Text&idle=90 in the URL) ---- */
+const params = new URLSearchParams(location.search);
+const STORE = {
+  name: params.get("store") || "Toyota Somerset West",
+  tag:  params.get("tag")   || "Authorised Toyota Dealer",
+  idleSeconds: +(params.get("idle") || 90),
+  slideSeconds: 6,
+};
+
+const C = window.CATALOG;
+const BY_ID = Object.fromEntries(C.ranges.map(r => [r.id, r]));
+const GRADE = {};                       // grade id -> { range, grade }
+C.ranges.forEach(r => r.grades.forEach(g => GRADE[g.id] = { r, g }));
+const catName = Object.fromEntries(C.categories);
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const money = p => p ? "R" + Math.round(p).toLocaleString("en-US") : "Ask us";
+const pm = p => p ? "R" + Math.round(p).toLocaleString("en-US") + " pm*" : "";
+const swBg = c => c.hex2 ? `linear-gradient(135deg, ${esc(c.hex)} 50%, ${esc(c.hex2)} 50%)` : esc(c.hex);
+const carImg = (g, ci = 0) => (g.colours[ci] && g.colours[ci].img) || g.side || g.front || "";
+const rangeImg = r => r.card || carImg(r.grades[0]);
+
+const state = { cat: "all", sort: "low" };
+let compare = [];          // grade ids, max 3
+const CMP_MAX = 3;
+
+$("storeName").textContent = STORE.name;
+$("storeTag").textContent = STORE.tag;
+$("attractStore").textContent = STORE.name;
+
+/* =================== Browse =================== */
+function drawTabs() {
+  const tabs = [["home", "⌂ Home"], ["all", "All"], ...C.categories];
+  $("tabs").innerHTML = tabs.map(([k, n]) => `<button class="tab${state.cat === k ? " on" : ""}" data-cat="${esc(k)}">${esc(n)}</button>`).join("");
+}
+$("tabs").onclick = e => {
+  const b = e.target.closest(".tab"); if (!b) return;
+  if (b.dataset.cat === "home") return showHome();
+  state.cat = b.dataset.cat; drawAll();
+};
+$("sort").onclick = () => { state.sort = state.sort === "low" ? "high" : "low"; drawGrid(); };
+
+function visible() {
+  const list = C.ranges.filter(r => state.cat === "all" || r.cats.includes(state.cat));
+  list.sort((a, b) => state.sort === "low" ? (a.minPrice || 9e12) - (b.minPrice || 9e12) : (b.minPrice || 0) - (a.minPrice || 0));
+  return list;
+}
+function cardHtml(r) {
+  const g = r.grades[0];
+  const on = compare.includes(g.id);
+  return `<div class="card" role="button" data-id="${esc(r.id)}">
+      <div class="pic"><img src="${rangeImg(r)}" alt="" loading="lazy" decoding="async"></div>
+      <div class="txt">
+        <div class="name">${esc(r.name)}</div>
+        ${r.tagline ? `<div class="tag">${esc(r.tagline)}</div>` : ""}
+        <div class="from">From <b>${money(r.minPrice)}</b></div>
+        ${r.monthly ? `<div class="pm">or ${pm(r.monthly)}</div>` : ""}
+        <div class="meta">${r.grades.length} model${r.grades.length > 1 ? "s" : ""}</div>
+        <button class="cmp${on ? " on" : ""}" data-cmp="${esc(g.id)}"><i>&#10003;</i>Compare</button>
+      </div>
+    </div>`;
+}
+function drawGrid() {
+  const list = visible();
+  $("sort").textContent = state.sort === "low" ? "Price ↑" : "Price ↓";
+  $("count").textContent = (state.cat === "all" ? "All Toyota models" : catName[state.cat]) + " · " + list.length + " ranges";
+  $("grid").innerHTML = list.map(cardHtml).join("");
+  $("main").scrollTop = 0;
+  drawTray();
+}
+function onCards(e) {
+  const cb = e.target.closest(".cmp"); if (cb) return toggleCompare(cb.dataset.cmp);
+  const c = e.target.closest(".card"); if (c) openRange(c.dataset.id);
+}
+$("grid").onclick = onCards;
+function drawAll() { $("app").classList.remove("home"); drawTabs(); drawGrid(); }
+
+/* =================== Home =================== */
+const HERO_ID = (C.ranges.find(r => r.id === "hilux-double-cab") || C.ranges[0]).id;
+function drawHome() {
+  const hero = BY_ID[HERO_ID];
+  const tileFor = k => { const rs = C.ranges.filter(r => r.cats.includes(k) && r.banner); return rs[Math.floor(rs.length / 2)] || rs[0]; };
+  const cheap = [...C.ranges].filter(r => r.monthly).sort((a, b) => a.monthly - b.monthly).slice(0, 10);
+  $("homeView").innerHTML = `
+    <section class="hero">
+      <img src="${hero.banner}" alt="">
+      <div class="copy">
+        <h1>Find your<br>Toyota</h1>
+        <p>Explore ${C.ranges.length} model ranges at ${esc(STORE.name)}. Choose your model, colour and compare side by side.</p>
+        <button class="go" data-go="all">Explore all models</button>
+      </div>
+    </section>
+    <h2 class="home-h">Shop by type</h2>
+    <div class="tiles">${C.categories.map(([k, n]) => { const r = tileFor(k); const count = C.ranges.filter(x => x.cats.includes(k)).length;
+      return `<button class="tile" data-go="${esc(k)}">${r ? `<img src="${r.banner}" alt="" loading="lazy" decoding="async">` : ""}
+        <div class="lbl"><b>${esc(n)}</b><span>${count} range${count > 1 ? "s" : ""}</span></div></button>`; }).join("")}</div>
+    <h2 class="home-h">Drive away from</h2>
+    <div class="rail">${cheap.map(cardHtml).join("")}</div>`;
+}
+function showHome() {
+  closeAll(); state.cat = "all";
+  $("app").classList.add("home");
+  $("main").scrollTop = 0;
+}
+$("homeView").onclick = e => {
+  const cb = e.target.closest(".cmp"); if (cb) return toggleCompare(cb.dataset.cmp);
+  const c = e.target.closest(".card"); if (c) return openRange(c.dataset.id);
+  const g = e.target.closest("[data-go]"); if (!g) return;
+  state.cat = g.dataset.go; drawAll();
+};
+$("logoHome").onclick = showHome;
+
+/* =================== Model page =================== */
+let sel = null;     // { r, gi, ci, tab }
+function openRange(id, gradeId) {
+  const r = BY_ID[id]; if (!r) return;
+  const gi = Math.max(0, r.grades.findIndex(g => g.id === gradeId));
+  sel = { r, gi, ci: 0, tab: "features" };
+  drawRange();
+  $("sheetBody").scrollTop = 0;
+  $("sheet").classList.add("open");
+}
+function closeRange() { $("sheet").classList.remove("open"); }
+$("close").onclick = closeRange;
+const grade = () => sel.r.grades[sel.gi];
+
+function tabsFor(r) {
+  return [["features", "Features", r.features.length], ["highlights", "Highlights", r.tips.length],
+          ["gallery", "Gallery", r.gallery.length], ["specs", "Specs", 1], ["safety", "Safety", r.safety.length]]
+    .filter(t => t[2]);
+}
+function drawRange() {
+  const r = sel.r, g = grade();
+  const tabs = tabsFor(r);
+  if (!tabs.some(t => t[0] === sel.tab)) sel.tab = tabs[0][0];
+  $("sheetBody").innerHTML = `
+    <div class="banner">${r.banner ? `<img src="${r.banner}" alt="">` : ""}
+      <div class="copy"><h1>${esc(r.name)}</h1>${r.tagline ? `<p>${esc(r.tagline)}</p>` : ""}</div></div>
+    <div class="pad">
+      ${r.grades.length > 1 ? `<div class="opt"><h4>Model <span>${r.grades.length} to choose from</span></h4>
+        <div class="grades" id="grades">${r.grades.map((x, i) =>
+          `<button class="grade${i === sel.gi ? " on" : ""}" data-i="${i}"><b>${esc(x.name)}</b><i>${money(x.price)}</i></button>`).join("")}</div></div>` : ""}
+      <div class="carpic"><img id="carImg" src="${carImg(g, sel.ci)}" alt=""></div>
+      ${g.colours.length ? `<div class="opt"><h4>Colour <span id="colName">${esc(g.colours[sel.ci].name)}</span></h4>
+        <div class="swatches" id="swatches">${g.colours.map((c, i) =>
+          `<button class="sw${i === sel.ci ? " on" : ""}" data-i="${i}" style="background:${swBg(c)}" aria-label="${esc(c.name)}"></button>`).join("")}</div></div>` : ""}
+      <div class="price"><div class="p">${money(g.price)}<small>${esc(g.name)}</small></div>
+        ${g.monthly ? `<div class="pm">${pm(g.monthly)}<small>estimated monthly</small></div>` : ""}</div>
+      ${g.stats.length ? `<div class="stats">${g.stats.slice(0, 4).map(([k, v]) => `<div class="stat"><b>${esc(v)}</b><span>${esc(k)}</span></div>`).join("")}</div>` : ""}
+      ${g.headline || g.blurb ? `<p class="blurb">${g.headline ? `<b>${esc(g.headline)}</b>` : ""}${esc(g.blurb)}</p>` : ""}
+    </div>
+    <div class="itabs" id="itabs">${tabs.map(([k, n]) => `<button class="itab${sel.tab === k ? " on" : ""}" data-t="${k}">${n}</button>`).join("")}</div>
+    <div class="ipane" id="ipane">${drawPane()}</div>`;
+  updateBar();
+}
+function drawPane() {
+  const r = sel.r, g = grade();
+  if (sel.tab === "features") return r.features.map(f => `<div class="feat">${f.img ? `<img src="${f.img}" alt="" loading="lazy" decoding="async">` : ""}
+      ${f.title ? `<h3>${esc(f.title)}</h3>` : ""}${f.text ? `<p>${esc(f.text)}</p>` : ""}</div>`).join("");
+  if (sel.tab === "highlights") return `<div class="tips">${r.tips.map(t => `<div class="tipc"><img src="${t.img}" alt="" loading="lazy" decoding="async">
+      <div>${t.labels.map(esc).join(" · ")}${t.text ? `<small>${esc(t.text)}</small>` : ""}</div></div>`).join("")}</div>`;
+  if (sel.tab === "gallery") return `<div class="gal">${r.gallery.map((p, i) => `<button data-photo="${i}"><img src="${p.thumb}" alt="" loading="lazy" decoding="async"></button>`).join("")}</div>`;
+  if (sel.tab === "safety") return `<div class="saf">${r.safety.map(s => `<div><b>${esc(s.title)}</b>${esc(s.text)}</div>`).join("")}</div>`;
+  // specs
+  return `<dl class="specs"><div><dt>Model</dt><dd>${esc(g.name)}</dd></div><div><dt>Price</dt><dd>${money(g.price)}</dd></div>
+      ${g.specs.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}
+      ${g.stats.filter(([k]) => !g.specs.some(s => s[0].toLowerCase() === k.toLowerCase())).map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>
+    <div class="scan"><img src="${g.pdfQr || r.qr}" alt="">
+      <div><b>${g.pdfQr ? "Scan for the full spec sheet" : "Scan to see this model online"}</b>
+      <p>${g.pdfQr ? "Download the official Toyota specification sheet for this model to your phone." : "Every specification, accessory and finance option for the " + esc(r.name) + " on toyota.co.za."}</p></div></div>
+    <p class="note">*Estimated monthly instalment as published by Toyota South Africa; terms, deposit and balloon apply. Prices may change, so please confirm with our sales team.</p>`;
+}
+function updateBar() {
+  const g = grade(), c = g.colours[sel.ci];
+  $("buildLine").textContent = [g.name, c && c.name].filter(Boolean).join(" · ");
+  $("buildPrice").textContent = money(g.price) + (g.monthly ? "  ·  " + pm(g.monthly) : "");
+  const on = compare.includes(g.id);
+  $("cmpThis").classList.toggle("on", on);
+  $("cmpThis").textContent = on ? "✓ Comparing" : "+ Compare";
+}
+$("sheetBody").addEventListener("click", e => {
+  const t = e.target; let el;
+  const keep = fn => { const y = $("sheetBody").scrollTop; fn(); $("sheetBody").scrollTop = y; };
+  if ((el = t.closest(".grade"))) return keep(() => { sel.gi = +el.dataset.i; sel.ci = 0; drawRange(); });
+  if ((el = t.closest(".sw"))) {
+    sel.ci = +el.dataset.i;
+    document.querySelectorAll("#swatches .sw").forEach(x => x.classList.toggle("on", x === el));
+    $("carImg").src = carImg(grade(), sel.ci); $("colName").textContent = grade().colours[sel.ci].name; updateBar(); return;
+  }
+  if ((el = t.closest(".itab"))) {
+    sel.tab = el.dataset.t;
+    document.querySelectorAll("#itabs .itab").forEach(x => x.classList.toggle("on", x === el));
+    $("ipane").innerHTML = drawPane(); return;
+  }
+  if ((el = t.closest("[data-photo]"))) return openViewer(+el.dataset.photo);
+});
+$("cmpThis").onclick = () => { if (sel) toggleCompare(grade().id); };
+
+/* ---- "My Toyota" summary ---- */
+$("mine").onclick = () => {
+  const r = sel.r, g = grade(), c = g.colours[sel.ci];
+  $("modalPanel").innerHTML = `<h2>My Toyota</h2>
+    <p class="muted">Show this to our sales team and we'll take it from here: availability, test drive and finance.</p>
+    <div class="lines">
+      <div><span>${esc(g.name)}</span><span>${money(g.price)}</span></div>
+      ${c ? `<div><span>Colour: ${esc(c.name)}</span><span></span></div>` : ""}
+      ${g.monthly ? `<div><span>Estimated monthly instalment</span><span>${pm(g.monthly)}</span></div>` : ""}
+    </div>
+    <div class="scan"><img src="${r.qr}" alt=""><div><b>Take it with you</b><p>Scan to open the ${esc(r.name)} on toyota.co.za.</p></div></div>
+    <p class="note">*Estimated, terms apply. Prices may change, so please confirm with our sales team.</p>
+    <button class="done" id="modalDone">Back</button>`;
+  $("modal").classList.add("on");
+};
+function closeModal() { $("modal").classList.remove("on"); }
+$("modal").addEventListener("click", e => { if (e.target.id === "modal" || e.target.id === "modalDone") closeModal(); });
+
+/* ---- Photo viewer ---- */
+let vi = 0;
+function openViewer(i) { vi = i; showPhoto(); $("viewer").classList.add("on"); }
+function showPhoto() {
+  const gal = sel.r.gallery; vi = (vi + gal.length) % gal.length;
+  $("vphoto").src = gal[vi].img; $("vcap").textContent = `${vi + 1} / ${gal.length}  ${gal[vi].title || ""}`;
+}
+$("vprev").onclick = () => { vi--; showPhoto(); };
+$("vnext").onclick = () => { vi++; showPhoto(); };
+$("vclose").onclick = () => $("viewer").classList.remove("on");
+(() => { let x0 = null;
+  $("vimg").addEventListener("pointerdown", e => x0 = e.clientX);
+  $("vimg").addEventListener("pointerup", e => { if (x0 === null) return; const dx = e.clientX - x0; x0 = null;
+    if (Math.abs(dx) > innerWidth * .08) { vi += dx < 0 ? 1 : -1; showPhoto(); } });
+})();
+
+/* =================== Compare (grades) =================== */
+let diffOnly = false;
+function toggleCompare(id) {
+  if (compare.includes(id)) compare = compare.filter(x => x !== id);
+  else if (compare.length >= CMP_MAX) { const t = $("tray"); t.style.background = "#ffe9eb"; setTimeout(() => t.style.background = "", 600); return; }
+  else compare.push(id);
+  syncCompare();
+}
+function syncCompare() {
+  document.querySelectorAll(".cmp").forEach(el => el.classList.toggle("on", compare.includes(el.dataset.cmp)));
+  if (sel) updateBar();
+  drawTray();
+  if ($("compare").classList.contains("on")) drawCompare();
+}
+function drawTray() {
+  const slots = [];
+  for (let i = 0; i < CMP_MAX; i++) {
+    const x = GRADE[compare[i]];
+    slots.push(x ? `<div class="slot"><img src="${carImg(x.g)}" alt=""><button class="x" data-rm="${esc(x.g.id)}" aria-label="Remove">&times;</button></div>`
+                 : `<div class="slot empty">Add a model</div>`);
+  }
+  $("tray").innerHTML = `<div class="slots">${slots.join("")}</div><button class="clear" data-clear="1">Clear</button>
+    <button class="go" id="cmpGo"${compare.length < 2 ? " disabled" : ""}>Compare ${compare.length}</button>`;
+  $("tray").classList.toggle("on", compare.length > 0);
+}
+$("tray").onclick = e => {
+  const rm = e.target.closest("[data-rm]"); if (rm) return toggleCompare(rm.dataset.rm);
+  if (e.target.closest("[data-clear]")) { compare = []; return syncCompare(); }
+  if (e.target.closest("#cmpGo") && compare.length >= 2) { closeModal(); drawCompare(); $("compare").classList.add("on"); $("cmpBody").scrollTop = 0; }
+};
+$("cmpClose").onclick = () => $("compare").classList.remove("on");
+$("diffOnly").onclick = () => { diffOnly = !diffOnly; $("diffOnly").classList.toggle("on", diffOnly); drawCompare(); };
+
+function drawCompare() {
+  const xs = compare.map(id => GRADE[id]).filter(Boolean);
+  $("cmpCount").textContent = xs.length + " of " + CMP_MAX;
+  if (xs.length < 2) { $("cmpBody").innerHTML = `<p class="muted" style="padding:6rem 2.4rem;text-align:center;font-size:1.3rem">Pick at least two models to compare.</p>`; return; }
+  const cols = `grid-template-columns: repeat(${xs.length}, 1fr)`;
+  const head = `<div class="chead" style="${cols}">${xs.map(({ r, g }) => `<div class="ccol">
+      <button class="pic" data-open="${esc(r.id)}" data-grade="${esc(g.id)}"><img src="${carImg(g)}" alt=""></button>
+      <button class="x" data-rm="${esc(g.id)}" aria-label="Remove">&times;</button>
+      <b>${esc(g.name)}</b><div class="pr">${money(g.price)}</div>
+      <button class="view" data-open="${esc(r.id)}" data-grade="${esc(g.id)}">View model</button></div>`).join("")}</div>`;
+  const row = (label, vals) => {
+    const differs = new Set(vals.map(v => String(v).replace(/<[^>]+>/g, "").trim().toLowerCase())).size > 1;
+    if (diffOnly && !differs) return "";
+    return `<div class="crow${differs ? " diff" : ""}"><div class="k">${esc(label)}</div><div class="v" style="${cols}">${vals.map(v => `<div>${v || "–"}</div>`).join("")}</div></div>`;
+  };
+  const sec = (t, rows) => { const h = rows.join(""); return h ? `<div class="csec">${esc(t)}</div>${h}` : ""; };
+  const specLabels = [...new Set(xs.flatMap(({ g }) => g.specs.map(s => s[0])))];
+  const statLabels = [...new Set(xs.flatMap(({ g }) => g.stats.map(s => s[0])))].filter(l => !specLabels.some(s => s.toLowerCase() === l.toLowerCase()));
+  const val = (arr, k) => esc((arr.find(s => s[0] === k) || [])[1] || "");
+  $("cmpBody").innerHTML = head +
+    sec("Price", [row("Price", xs.map(({ g }) => money(g.price))), row("Monthly from*", xs.map(({ g }) => pm(g.monthly))), row("Range", xs.map(({ r }) => esc(r.name)))]) +
+    sec("Specifications", specLabels.map(k => row(k, xs.map(({ g }) => val(g.specs, k))))) +
+    sec("Key figures", statLabels.map(k => row(k, xs.map(({ g }) => val(g.stats, k))))) +
+    sec("Colours", [row("Colours", xs.map(({ g }) => `<div class="sw-row">${g.colours.map(c => `<i style="background:${swBg(c)}" title="${esc(c.name)}"></i>`).join("")}</div>`))]) +
+    `<p class="note" style="padding:0 2.4rem 3rem">*Estimated monthly instalment as published by Toyota South Africa; terms apply. Please confirm with our sales team.</p>`;
+}
+$("cmpBody").addEventListener("click", e => {
+  const rm = e.target.closest("[data-rm]"); if (rm) return toggleCompare(rm.dataset.rm);
+  const o = e.target.closest("[data-open]"); if (o) { $("compare").classList.remove("on"); openRange(o.dataset.open, o.dataset.grade); }
+});
+
+/* =================== Screensaver =================== */
+const showcase = C.ranges.filter(r => r.banner);
+let slideIdx = 0, slideTimer = null, front = "slideA";
+function showSlide() {
+  const r = showcase[slideIdx++ % showcase.length];
+  const back = front === "slideA" ? "slideB" : "slideA", el = $(back);
+  el.innerHTML = `<img class="band" src="${r.banner}" alt=""><div class="cap"><div class="nm">${esc(r.name)}</div>
+    ${r.tagline ? `<div class="tg">${esc(r.tagline)}</div>` : ""}<div class="pr">From ${money(r.minPrice)}${r.monthly ? " · " + pm(r.monthly) : ""}</div></div>
+    <img class="car" src="${r.side || rangeImg(r)}" alt="">`;
+  const img = el.querySelector("img");
+  const swap = () => { $(front).classList.remove("on"); el.classList.add("on"); front = back; };
+  img.complete ? swap() : (img.onload = img.onerror = swap);
+}
+function closeAll() { closeRange(); closeModal(); $("viewer").classList.remove("on"); $("compare").classList.remove("on"); }
+function startAttract() {
+  state.sort = "low"; compare = []; syncCompare(); showHome();
+  $("attract").classList.add("on");
+  showSlide(); clearInterval(slideTimer); slideTimer = setInterval(showSlide, STORE.slideSeconds * 1000);
+}
+function stopAttract() { $("attract").classList.remove("on"); clearInterval(slideTimer); }
+let idleTimer;
+function poke() { clearTimeout(idleTimer); idleTimer = setTimeout(startAttract, STORE.idleSeconds * 1000); }
+$("attract").addEventListener("pointerdown", e => { e.preventDefault(); stopAttract(); poke(); });
+["pointerdown", "touchstart", "scroll", "keydown"].forEach(ev => document.addEventListener(ev, poke, { passive: true, capture: true }));
+document.addEventListener("contextmenu", e => e.preventDefault());
+
+drawHome();
+drawAll();
+showHome();
+startAttract();
+</script>
+</body>
+</html>
