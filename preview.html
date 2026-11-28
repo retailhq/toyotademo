@@ -33,7 +33,8 @@
 </div>
 <script>
   const kiosk = document.getElementById("kiosk");
-  kiosk.src = "index.html" + location.search;
+  // always load the latest kiosk (a timestamp stops the browser reusing a saved copy)
+  kiosk.src = "index.html" + (location.search ? location.search + "&" : "?") + "t=" + Date.now();
   function fit() {
     const s = Math.min((innerHeight - 80) / 1920, (innerWidth - 340) / 1080, 1);
     const scr = document.getElementById("screen");
